@@ -44,9 +44,9 @@ export default function Player({ socket, roomState, onChangeVideo, onToggleChat,
 
     // Handle remote play
     const onPlay = (time: number) => {
-      if (typeof player.getCurrentTime === 'function') {
-        if (Math.abs(player.getCurrentTime() - time) > 1) {
-          player.seekTo(time, 'seconds');
+      if (player && typeof player.currentTime !== 'undefined') {
+        if (Math.abs(player.currentTime - time) > 1) {
+          player.currentTime = time;
         }
       }
       setIsPlaying(true);
@@ -54,9 +54,9 @@ export default function Player({ socket, roomState, onChangeVideo, onToggleChat,
 
     // Handle remote pause
     const onPause = (time: number) => {
-      if (typeof player.getCurrentTime === 'function') {
-        if (Math.abs(player.getCurrentTime() - time) > 0.5) {
-          player.seekTo(time, 'seconds');
+      if (player && typeof player.currentTime !== 'undefined') {
+        if (Math.abs(player.currentTime - time) > 0.5) {
+          player.currentTime = time;
         }
       }
       setIsPlaying(false);
@@ -64,8 +64,8 @@ export default function Player({ socket, roomState, onChangeVideo, onToggleChat,
 
     // Handle remote seek
     const onSeek = (time: number) => {
-      if (typeof player.seekTo === 'function') {
-        player.seekTo(time, 'seconds');
+      if (player) {
+        player.currentTime = time;
       }
     };
 
@@ -82,17 +82,17 @@ export default function Player({ socket, roomState, onChangeVideo, onToggleChat,
 
   // Handle source changes from server
   useEffect(() => {
-    if (isReady && playerRef.current && typeof playerRef.current.getCurrentTime === 'function') {
-      if (Math.abs(playerRef.current.getCurrentTime() - roomState.time) > 1) {
-        playerRef.current.seekTo(roomState.time, 'seconds');
+    if (isReady && playerRef.current && typeof playerRef.current.currentTime !== 'undefined') {
+      if (Math.abs(playerRef.current.currentTime - roomState.time) > 1) {
+        playerRef.current.currentTime = roomState.time;
       }
       setIsPlaying(roomState.isPlaying);
     }
   }, [roomState.video, roomState.time, roomState.isPlaying, isReady]);
 
   const handlePlayPause = () => {
-    if (!playerRef.current || typeof playerRef.current.getCurrentTime !== 'function') return;
-    const t = playerRef.current.getCurrentTime();
+    if (!playerRef.current || typeof playerRef.current.currentTime === 'undefined') return;
+    const t = playerRef.current.currentTime;
     if (!isPlaying) {
       socket.emit("play", t);
       setIsPlaying(true);
@@ -103,18 +103,18 @@ export default function Player({ socket, roomState, onChangeVideo, onToggleChat,
   };
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!playerRef.current || typeof playerRef.current.seekTo !== 'function') return;
+    if (!playerRef.current || typeof playerRef.current.currentTime === 'undefined') return;
     const t = parseFloat(e.target.value);
-    playerRef.current.seekTo(t, 'seconds');
+    playerRef.current.currentTime = t;
     setCurrentTime(t);
     socket.emit("seek", t);
   };
 
   const handleSkip = (seconds: number) => {
-    if (!playerRef.current || typeof playerRef.current.getCurrentTime !== 'function') return;
-    const t = playerRef.current.getCurrentTime();
+    if (!playerRef.current || typeof playerRef.current.currentTime === 'undefined') return;
+    const t = playerRef.current.currentTime;
     const newTime = Math.max(0, Math.min(t + seconds, duration));
-    playerRef.current.seekTo(newTime, 'seconds');
+    playerRef.current.currentTime = newTime;
     setCurrentTime(newTime);
     socket.emit("seek", newTime);
   };
@@ -154,18 +154,18 @@ export default function Player({ socket, roomState, onChangeVideo, onToggleChat,
     >
       <PlayerComponent
         ref={playerRef}
-        url={videoUrl}
+        src={videoUrl}
         playing={isPlaying}
         volume={volume}
         width="100%"
         height="100%"
         controls={false}
-        playsinline
+        playsInline
         onReady={() => setIsReady(true)}
-        onProgress={(state: { playedSeconds: number }) => setCurrentTime(state.playedSeconds)}
-        onDuration={(d: number) => setDuration(d)}
-        onBuffer={() => setIsBuffering(true)}
-        onBufferEnd={() => setIsBuffering(false)}
+        onTimeUpdate={(e: any) => setCurrentTime(e.currentTarget.currentTime)}
+        onDurationChange={(e: any) => setDuration(e.currentTarget.duration)}
+        onWaiting={() => setIsBuffering(true)}
+        onPlaying={() => setIsBuffering(false)}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
         onEnded={() => setIsPlaying(false)}
@@ -180,7 +180,7 @@ export default function Player({ socket, roomState, onChangeVideo, onToggleChat,
               rel: 0,
               origin: typeof window !== 'undefined' ? window.location.origin : ''
             }
-          } as any
+          }
         }}
       />
       
