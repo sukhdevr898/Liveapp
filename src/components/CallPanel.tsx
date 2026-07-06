@@ -141,19 +141,41 @@ export default function CallPanel({ socket, users, currentUserId }: CallPanelPro
   };
 
   useEffect(() => {
-    socket.on("user-joined", (payload) => {
-      // payload is { userId, userName }
-      const peer = createPeer(payload.userId, socket.id!, stream);
-      peersRef.current.push({ peerId: payload.userId, peer });
-      setPeers([...peersRef.current]);
+    users.forEach(user => {
+      if (user.id !== currentUserId) {
+        const existingPeer = peersRef.current.find(p => p.peerId === user.id);
+        if (!existingPeer) {
+          // If no peer exists, we decide who initiates based on ID comparison
+          if (currentUserId > user.id) {
+            console.log("Initiating peer to", user.id);
+            const peer = createPeer(user.id, currentUserId, stream);
+            peersRef.current.push({ peerId: user.id, peer });
+            setPeers([...peersRef.current]);
+          }
+        }
+      }
     });
+    
+    // Also remove peers that are no longer in the users list
+    const currentPeerIds = peersRef.current.map(p => p.peerId);
+    currentPeerIds.forEach(peerId => {
+       if (!users.find(u => u.id === peerId)) {
+          const peerObj = peersRef.current.find(p => p.peerId === peerId);
+          if (peerObj) peerObj.peer.destroy();
+          peersRef.current = peersRef.current.filter(p => p.peerId !== peerId);
+       }
+    });
+    setPeers([...peersRef.current]);
+  }, [users, currentUserId, stream]);
 
+  useEffect(() => {
     socket.on("signal", (payload) => {
       const item = peersRef.current.find(p => p.peerId === payload.from);
       if (item) {
         item.peer.signal(payload.signal);
       } else {
-        // incoming call
+        // incoming call (we must be the non-initiator)
+        console.log("Receiving call from", payload.from);
         const peer = new Peer({
           initiator: false,
           trickle: true,
@@ -185,20 +207,8 @@ export default function CallPanel({ socket, users, currentUserId }: CallPanelPro
       }
     });
 
-    socket.on("user-left", (payload) => {
-      const id = typeof payload === 'string' ? payload : payload.userId;
-      const peerObj = peersRef.current.find(p => p.peerId === id);
-      if (peerObj) {
-        peerObj.peer.destroy();
-      }
-      peersRef.current = peersRef.current.filter(p => p.peerId !== id);
-      setPeers([...peersRef.current]);
-    });
-
     return () => {
-      socket.off("user-joined");
       socket.off("signal");
-      socket.off("user-left");
     };
   }, [socket, stream]);
 

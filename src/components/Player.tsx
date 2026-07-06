@@ -154,7 +154,7 @@ export default function Player({ socket, roomState, onChangeVideo, onToggleChat,
     >
       <PlayerComponent
         ref={playerRef}
-        src={videoUrl}
+        url={videoUrl}
         playing={isPlaying}
         volume={volume}
         width="100%"

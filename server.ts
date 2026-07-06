@@ -44,6 +44,7 @@ async function startServer() {
     id: string;
     video: string | null;
     time: number;
+    lastUpdateTime: number;
     isPlaying: boolean;
     users: { id: string; name: string }[];
     chat: { id: string; userId: string; userName: string; text: string; timestamp: string }[];
@@ -60,6 +61,7 @@ async function startServer() {
           id: roomId,
           video: null,
           time: 0,
+          lastUpdateTime: Date.now(),
           isPlaying: false,
           users: [],
           chat: []
@@ -71,7 +73,13 @@ async function startServer() {
          room.users.push({ id: socket.id, name: userName });
       }
 
-      socket.emit("room-state", room);
+      // Calculate current time if playing
+      let currentRoomState = { ...room };
+      if (room.isPlaying) {
+         currentRoomState.time = room.time + (Date.now() - room.lastUpdateTime) / 1000;
+      }
+
+      socket.emit("room-state", currentRoomState);
       io.to(roomId).emit("users-changed", room.users);
       
       // Notify others in room for WebRTC
@@ -81,6 +89,7 @@ async function startServer() {
         if (room) {
           room.video = video;
           room.time = 0;
+          room.lastUpdateTime = Date.now();
           room.isPlaying = false;
           io.to(roomId).emit("room-state", room);
         }
@@ -90,6 +99,7 @@ async function startServer() {
         if (room) {
           room.isPlaying = true;
           room.time = time;
+          room.lastUpdateTime = Date.now();
           socket.to(roomId).emit("play", time);
         }
       });
@@ -97,7 +107,9 @@ async function startServer() {
       socket.on("pause", (time) => {
         if (room) {
           room.isPlaying = false;
+          // When pausing, update the time to what it should be
           room.time = time;
+          room.lastUpdateTime = Date.now();
           socket.to(roomId).emit("pause", time);
         }
       });
@@ -105,6 +117,7 @@ async function startServer() {
       socket.on("seek", (time) => {
         if (room) {
           room.time = time;
+          room.lastUpdateTime = Date.now();
           socket.to(roomId).emit("seek", time);
         }
       });
@@ -112,6 +125,7 @@ async function startServer() {
       socket.on("sync", (time) => {
          if (room) {
             room.time = time;
+            room.lastUpdateTime = Date.now();
          }
       });
 
